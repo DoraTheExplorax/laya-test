@@ -1,0 +1,50 @@
+stage,stage_document,carries_forward,param,type,scope,answer_field,options,fields judged,labels from,evidence,est tokens p50,est tokens max,% calls over 1024
+parser,parser,False,parse_consistency,noul,case,,,__parse__,parser_flags,"parser_text, parser_reading_order, parser_warnings",590,696,0%
+parser,parser,False,parse_line,noul,line,,,__parse_line__,parser_flags,"parser_line, parser_text_line",494,707,0%
+extraction,normalization,True,doc_type,choice,case,document_type,invoice | purchase_order | sales_order,document_type,expected_final_output,parser_text,587,698,0%
+extraction,normalization,True,doc_number_date,noul,case,,,"document_number, document_date",expected_final_output,"parser_text, customer_profile, doc_header",670,779,0%
+extraction,normalization,True,currency,choice,case,currency,EUR | GBP,currency,expected_final_output,parser_text,570,680,0%
+extraction,normalization,True,supplier,choice,case,supplier_id,per-case parties,supplier_id,expected_final_output,parser_text,586,697,0%
+extraction,normalization,True,buyer,choice,case,buyer_id,per-case parties,buyer_id,expected_final_output,parser_text,585,696,0%
+extraction,normalization,True,ship_to,choice,case,ship_to_id,per-case locations,ship_to_id,expected_final_output,parser_text,597,708,0%
+extraction,normalization,True,payment_terms,choice,case,payment_terms_days,30 | 45,payment_terms_days,expected_final_output,parser_text,569,680,0%
+extraction,normalization,True,freight,choice,case,freight,0.00 | 9.50 | 19.00,freight,expected_final_output,parser_text,583,694,0%
+extraction,normalization,True,line_set,noul,case,,,__line_set__,expected_final_output,"parser_text, commercial_policy, doc_line_ids",731,864,0%
+extraction,normalization,True,line_product,choice,line,product_id,per-case products,product_id,expected_final_output,"parser_text_line, line_ref",564,778,0%
+extraction,normalization,True,line_quantity,noul,line,,,quantity,expected_final_output,"parser_text_line, master_product_line, commercial_policy, doc_line",656,859,0%
+extraction,normalization,True,line_unit,choice,line,unit,EA | KG,unit,expected_final_output,"parser_text_line, master_product_line, line_ref",516,711,0%
+extraction,normalization,True,line_unit_price,noul,line,,,unit_price,expected_final_output,"parser_text_line, doc_line",518,714,0%
+extraction,normalization,True,line_price_basis,choice,line,price_basis,1 | 100,price_basis,expected_final_output,"parser_text_line, line_ref",470,666,0%
+extraction,normalization,True,line_discount,choice,line,discount_percent,0 | 14.5 | 15 | 100,discount_percent,expected_final_output,"parser_text_line, line_ref",480,676,0%
+extraction,normalization,True,line_tax,choice,line,tax_rate,20 | 0,tax_rate,expected_final_output,"parser_text_line, line_ref",461,657,0%
+extraction,normalization,True,line_dates,noul,line,,,"delivery_date, schedule",expected_final_output,"parser_text_line, customer_profile, doc_line",545,740,0%
+matching,matching,True,supplier,choice,case,supplier_id,per-case parties,supplier_id,expected_final_output,parser_text,586,697,0%
+matching,matching,True,buyer,choice,case,buyer_id,per-case parties,buyer_id,expected_final_output,parser_text,585,696,0%
+matching,matching,True,line_product,choice,line,product_id,per-case products,product_id,expected_final_output,"parser_text_line, line_ref",564,778,0%
+validation,final,True,doc_type,choice,case,document_type,invoice | purchase_order | sales_order,document_type,expected_final_output,parser_text,587,698,0%
+validation,final,True,doc_number_date,noul,case,,,"document_number, document_date",expected_final_output,"parser_text, customer_profile, doc_header",670,779,0%
+validation,final,True,line_set,noul,case,,,__line_set__,expected_final_output,"parser_text, commercial_policy, doc_line_ids",731,864,0%
+validation,final,True,currency_precedence,noul,case,,,currency,failure_mechanisms:currency_precedence,"parser_text, doc_header",643,752,0%
+validation,final,True,payment_terms,noul,case,,,payment_terms_days,failure_mechanisms:payment_terms,"parser_text, doc_header",641,750,0%
+validation,final,True,party_roles,noul,case,,,"supplier_id, buyer_id",failure_mechanisms:party_roles,"parser_text, master_parties, doc_header",696,805,0%
+validation,final,True,ship_to,noul,case,,,ship_to_id,failure_mechanisms:ship_to,"parser_text, master_locations, doc_header",707,816,0%
+validation,final,True,freight_scope,noul,case,,,freight,failure_mechanisms:freight_scope,"parser_text, doc_totals",586,696,0%
+validation,final,True,revision_quantity,noul,line,,,quantity,failure_mechanisms:revision_quantity,"parser_text_line, doc_line",519,718,0%
+validation,final,True,cancelled_line,noul,line,,,quantity,failure_mechanisms:cancelled_line,"parser_text_line, commercial_policy, doc_line",602,801,0%
+validation,final,True,credit_sign,noul,line,,,quantity,failure_mechanisms:credit_sign,"parser_text_line, commercial_policy, doc_line",601,800,0%
+validation,final,True,partial_billing,noul,line,,,quantity,failure_mechanisms:partial_billing,"parser_text_line, doc_line",519,718,0%
+validation,final,True,pack_conversion,noul,line,,,"quantity, unit",failure_mechanisms:pack_conversion,"parser_text_line, master_product_line, doc_line",572,790,0%
+validation,final,True,net_weight,noul,line,,,"quantity, unit",failure_mechanisms:net_weight,"parser_text_line, master_product_line, doc_line",571,789,0%
+validation,final,True,price_basis,noul,line,,,"price_basis, unit_price",failure_mechanisms:price_basis,"parser_text_line, doc_line",517,716,0%
+validation,final,True,gross_price,noul,line,,,unit_price,failure_mechanisms:gross_price,"parser_text_line, doc_line",517,716,0%
+validation,final,True,fx_conversion,noul,line,,,unit_price,failure_mechanisms:fx_conversion,"parser_text_line, doc_line",518,717,0%
+validation,final,True,decimal_locale,noul,line,,,"unit_price, quantity",failure_mechanisms:decimal_locale,"parser_text_line, doc_line",518,717,0%
+validation,final,True,stacked_discount,noul,line,,,discount_percent,failure_mechanisms:stacked_discount,"parser_text_line, doc_line",519,718,0%
+validation,final,True,free_goods,noul,line,,,"discount_percent, quantity",failure_mechanisms:free_goods,"parser_text_line, doc_line",517,716,0%
+validation,final,True,tax_exemption,noul,line,,,tax_rate,failure_mechanisms:tax_exemption,"parser_text_line, doc_line",518,717,0%
+validation,final,True,date_locale,noul,line,,,delivery_date,failure_mechanisms:date_locale,"parser_text_line, customer_profile, doc_line",545,744,0%
+validation,final,True,split_schedule,noul,line,,,schedule,failure_mechanisms:split_schedule,"parser_text_line, doc_line",518,717,0%
+validation,final,True,buyer_code,noul,line,,,product_id,failure_mechanisms:buyer_code,"parser_text_line, master_products_brief, doc_header, doc_line",808,1036,0%
+validation,final,True,product_variant,noul,line,,,product_id,failure_mechanisms:product_variant,"parser_text_line, master_products_brief, doc_line",720,950,0%
+validation,final,True,substitution,noul,line,,,product_id,failure_mechanisms:substitution,"parser_text_line, master_products_brief, doc_line",719,949,0%
+validation,final,True,repeated_item,noul,line,,,product_id,failure_mechanisms:repeated_item,"parser_text_line, master_products_brief, doc_line_ids",750,989,0%

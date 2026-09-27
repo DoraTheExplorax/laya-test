@@ -1,0 +1,720 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stage Bench</title>
+<link rel="icon" href="data:,">
+<style>
+:root {
+  color-scheme: light;
+  --page: #f9f9f7; --surface: #fcfcfb; --surface-2: #f3f2ee;
+  --ink: #0b0b0b; --ink-2: #52514e; --muted: #898781;
+  --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10);
+  --s1: #2a78d6; --s2: #eb6834;
+  --good: #0ca30c; --good-text: #006300; --warn: #fab219; --serious: #ec835a; --critical: #d03b3b;
+  --accent: #2a78d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme="light"])) {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --surface-2: #232321;
+    --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+    --s1: #3987e5; --s2: #d95926; --good-text: #0ca30c; --accent: #3987e5;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --page: #0d0d0d; --surface: #1a1a19; --surface-2: #232321;
+  --ink: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+  --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10);
+  --s1: #3987e5; --s2: #d95926; --good-text: #0ca30c; --accent: #3987e5;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--page); color: var(--ink); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+header { position: sticky; top: 0; z-index: 5; background: var(--surface); border-bottom: 1px solid var(--border); padding: 10px 20px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+header h1 { font-size: 16px; margin: 0 12px 0 0; }
+header select { max-width: 70vw; }
+header label { flex-wrap: wrap; }
+main { max-width: 1400px; margin: 0 auto; padding: 16px 20px 60px; }
+section { overflow-x: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+section > h2 { font-size: 15px; margin: 0 0 12px; display: flex; gap: 10px; align-items: baseline; }
+section > h2 small { color: var(--muted); font-weight: 400; font-size: 12px; }
+label { color: var(--ink-2); font-size: 12px; display: inline-flex; gap: 6px; align-items: center; }
+select, input[type=number], button { font: inherit; font-size: 13px; color: var(--ink); background: var(--surface-2); border: 1px solid var(--border); border-radius: 6px; padding: 5px 8px; }
+button { cursor: pointer; }
+button.primary { background: var(--accent); color: #fff; border-color: transparent; }
+button:disabled { opacity: .5; cursor: default; }
+.muted { color: var(--muted); }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+.num { font-variant-numeric: tabular-nums; text-align: right; }
+.spacer { flex: 1; }
+
+/* job */
+#job { display: flex; gap: 10px; align-items: center; font-size: 12px; color: var(--ink-2); min-width: 260px; }
+.bar { height: 6px; background: var(--grid); border-radius: 3px; overflow: hidden; width: 140px; }
+.bar > i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+#joblog { display: none; max-height: 180px; overflow: auto; background: var(--surface-2); border-radius: 6px; padding: 8px; margin-top: 8px; white-space: pre-wrap; }
+
+/* stepper */
+.stepper { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.step { border: 1px solid var(--border); border-radius: 10px; padding: 12px; cursor: pointer; background: var(--surface); position: relative; }
+.step.active { outline: 2px solid var(--accent); outline-offset: -1px; }
+.step .n { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+.step .name { font-weight: 600; font-size: 15px; margin: 2px 0 8px; }
+.step .kv { display: flex; justify-content: space-between; font-size: 12px; color: var(--ink-2); margin-top: 3px; }
+.step .kv b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.badge { white-space: nowrap; display: inline-flex; gap: 5px; align-items: center; font-size: 12px; font-weight: 600; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface-2); color: var(--ink); }
+.badge .dot { width: 8px; height: 8px; border-radius: 50%; }
+.dot.good { background: var(--good); } .dot.critical { background: var(--critical); } .dot.warn { background: var(--warn); } .dot.none { background: var(--axis); }
+
+/* tables */
+table { border-collapse: collapse; width: 100%; }
+th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); font-weight: 600; padding: 6px 8px; border-bottom: 1px solid var(--grid); position: sticky; top: 0; background: var(--surface); }
+td { padding: 7px 8px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+tr.clickable { cursor: pointer; }
+tr.clickable:hover td { background: var(--surface-2); }
+tr.sel td { background: var(--surface-2); }
+.q { max-width: 380px; }
+.q i { color: var(--ink-2); }
+.chip { display: inline-block; font-size: 11px; padding: 1px 6px; margin: 1px 2px 1px 0; border-radius: 4px; background: var(--surface-2); border: 1px solid var(--border); color: var(--ink-2); }
+.meter { display: flex; align-items: center; gap: 8px; min-width: 150px; }
+.meter .track { flex: 1; height: 8px; background: var(--grid); border-radius: 4px; overflow: hidden; }
+.meter .fill { height: 100%; background: var(--s1); border-radius: 4px; }
+.scroll { max-height: 520px; overflow: auto; }
+.reasons { font-size: 12px; color: var(--ink-2); }
+
+/* drilldown */
+.drill { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; }
+.drill h3 { font-size: 13px; margin: 0 0 6px; }
+.item { padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; margin-bottom: 6px; cursor: pointer; font-size: 12px; }
+.item:hover { background: var(--surface-2); }
+.item .top { display: flex; gap: 8px; justify-content: space-between; }
+
+/* charts */
+.charts { display: grid; grid-template-columns: 1fr 1.4fr; gap: 16px; }
+.tiles { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; margin-bottom: 16px; }
+.tile { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; }
+.tile .l { font-size: 12px; color: var(--ink-2); }
+.tile .v { font-size: 24px; font-weight: 600; margin-top: 2px; }
+.tile .s { font-size: 11px; color: var(--muted); }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--ink-2); margin: 4px 0 6px; }
+.legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+svg text { fill: var(--muted); font-size: 11px; font-family: system-ui, sans-serif; }
+svg .grid { stroke: var(--grid); stroke-width: 1; }
+svg .axis { stroke: var(--axis); stroke-width: 1; }
+#tip { position: fixed; pointer-events: none; background: var(--surface); color: var(--ink); border: 1px solid var(--border); box-shadow: 0 4px 16px rgba(0,0,0,.15); border-radius: 6px; padding: 6px 8px; font-size: 12px; display: none; z-index: 20; }
+.thr { display: flex; gap: 12px; align-items: center; margin: 8px 0; flex-wrap: wrap; }
+.thr input[type=range] { width: 260px; }
+.thr .m { font-size: 12px; color: var(--ink-2); }
+.thr .m b { color: var(--ink); font-variant-numeric: tabular-nums; }
+
+/* stage run buttons + inspector */
+.step .run { margin-top: 10px; width: 100%; }
+.io { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); gap: 16px; margin-top: 12px; }
+.io pre { white-space: pre-wrap; word-break: break-word; background: var(--surface-2); padding: 10px; border-radius: 6px; margin: 0; max-height: 560px; overflow: auto; }
+.io h3 { font-size: 13px; margin: 0 0 6px; }
+.tabs { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.tabs button { border: 0; border-radius: 0; background: transparent; }
+.tabs button.on { background: var(--accent); color: #fff; }
+td.bad { box-shadow: inset 3px 0 0 var(--critical); }
+.fixed { color: var(--ink-2); font-size: 11px; font-style: italic; }
+details summary { cursor: pointer; color: var(--ink-2); font-size: 12px; margin-top: 8px; }
+@media (max-width: 900px) { .io { grid-template-columns: 1fr; } }
+/* summary (markdown) */
+.md { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 24px 28px; max-width: 980px; margin: 0 auto; overflow-x: auto; }
+.md h1 { font-size: 24px; margin: 0 0 12px; } .md h2 { font-size: 19px; margin: 28px 0 10px; padding-top: 12px; border-top: 1px solid var(--grid); }
+.md h3 { font-size: 15px; margin: 20px 0 8px; } .md p, .md li { line-height: 1.55; }
+.md table { margin: 10px 0 16px; } .md th { position: static; } .md td { vertical-align: top; }
+.md blockquote { margin: 12px 0; padding: 8px 14px; border-left: 3px solid var(--accent); background: var(--surface-2); border-radius: 0 6px 6px 0; }
+.md blockquote p { margin: 4px 0; } .md code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
+.md hr { border: 0; border-top: 1px solid var(--grid); margin: 20px 0; }
+/* modal */
+#modal { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: none; align-items: center; justify-content: center; z-index: 30; }
+#modal .box { background: var(--surface); border-radius: 10px; width: min(900px, 92vw); max-height: 86vh; overflow: auto; padding: 16px; }
+#modal pre { white-space: pre-wrap; background: var(--surface-2); padding: 10px; border-radius: 6px; }
+.empty { padding: 24px; text-align: center; color: var(--muted); }
+@media (max-width: 900px) { .stepper, .tiles { grid-template-columns: 1fr 1fr; } .charts, .drill { grid-template-columns: 1fr; } }
+@media (max-width: 520px) { header { padding: 10px 16px; } #job { min-width: 0; } main { padding: 12px 16px; } .stepper, .tiles { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Stage Bench</h1>
+  <span class="tabs" id="viewTabs"><button class="on" data-v="bench">Bench</button><button data-v="summary">Summary</button></span>
+  <label>Run <select id="runSel"></select></label>
+  <span class="spacer"></span>
+  <label>Split <select id="rSplit"><option value="train">train (200, labelled)</option><option value="val">val (50)</option></select></label>
+  <label>Up to <select id="rStage"><option value="">all stages (stop at gate)</option></select></label>
+  <label><input type="checkbox" id="rForce"> ignore gates</label>
+  <label>Limit <input type="number" id="rLimit" value="0" min="0" style="width:64px"></label>
+  <button class="primary" id="runBtn">Run bench</button>
+  <button id="cancelBtn" style="display:none">■ Cancel run</button>
+  <div id="job"></div>
+</header>
+<main id="summaryView" style="display:none"><article class="md" id="summaryBody"><div class="empty">loading…</div></article></main>
+<main id="benchView">
+  <div id="joblog" class="mono"></div>
+
+  <section>
+    <h2>Stages <small id="stageNote"></small></h2>
+    <div class="stepper" id="stepper"></div>
+  </section>
+
+  <section>
+    <h2 id="stageTitle">Questions</h2>
+    <div class="scroll"><table id="paramTable"></table></div>
+    <div id="drill"></div>
+  </section>
+
+  <section>
+    <h2>Case inspector <small>what a stage received vs what it produced vs expected, with each question's answer</small></h2>
+    <div class="thr">
+      <label>Case <input id="caseInput" list="caseList" class="mono" style="width:230px;font:inherit;padding:5px 8px;border:1px solid var(--border);border-radius:6px;background:var(--surface-2);color:var(--ink)"></label>
+      <datalist id="caseList"></datalist>
+      <span class="tabs" id="ioTabs"></span>
+      <label><input type="checkbox" id="onlyWrongFields"> only wrong fields</label>
+      <button id="runCaseBtn">▶ Run this case through this stage</button>
+      <span class="muted" id="caseMeta"></span>
+    </div>
+    <div id="inspector"><div class="empty">Pick a case (or click one in the tables below).</div></div>
+  </section>
+
+  <section>
+    <h2>Confidence <small>cumulative score after each stage &middot; set the threshold on the last one</small></h2>
+    <div class="tiles" id="tiles"></div>
+    <div class="charts">
+      <div>
+        <div style="font-weight:600;font-size:13px">Cumulative AUROC after each stage</div>
+        <div class="legend"><span><i style="background:var(--s1)"></i>carry-forward</span><span><i style="background:var(--s2)"></i>product of all stages</span></div>
+        <svg id="aucChart" width="100%" height="240"></svg>
+      </div>
+      <div>
+        <div style="font-weight:600;font-size:13px">Score distribution <select id="distStage" style="margin-left:6px"></select></div>
+        <div class="legend"><span><i style="background:var(--s1)"></i>acceptable</span><span><i style="background:var(--s2)"></i>not acceptable</span></div>
+        <svg id="distChart" width="100%" height="240"></svg>
+        <div class="thr">
+          <label>Threshold <input type="range" id="thr" min="0" max="1000" step="1"></label>
+          <label><input type="checkbox" id="logScale"> log scale</label>
+          <div class="m" id="thrStats"></div>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:12px">
+      <label><input type="checkbox" id="onlyWrong" checked> only cases on the wrong side of the threshold</label>
+      <div class="scroll" style="max-height:360px;margin-top:6px"><table id="caseTable"></table></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Parser flags <small>code-computed parser mistakes · errors label the parser stage wrong, warnings are for review</small></h2>
+    <div id="pflags"></div>
+  </section>
+
+  <section>
+    <h2>Enums <small>every value in every stage document + expected output must map to exactly one option</small></h2>
+    <div id="enums"></div>
+  </section>
+
+  <section>
+    <h2>Run history</h2>
+    <div class="scroll" style="max-height:300px"><table id="history"></table></div>
+  </section>
+</main>
+<div id="tip"></div>
+<div id="modal"><div class="box"><div style="display:flex;justify-content:space-between;align-items:center"><b id="modalTitle"></b><button id="modalClose">Close</button></div><div id="modalBody"></div></div></div>
+
+<script>
+const $ = s => document.querySelector(s);
+const fmt = (x, d = 3) => x == null ? '–' : Number(x).toFixed(d);
+const pct = x => x == null ? '–' : (100 * x).toFixed(0) + '%';
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const api = async (p, opt) => { const r = await fetch(p, opt); const j = await r.json(); if (j && j.error) throw new Error(j.error); return j; };
+
+let CFG = null, RUNS = [], RUN = null, STAGE = null, PARAM = null, THR = 0.5, DIST_STAGE = null;
+
+function statusOf(stageName) {
+  if (!RUN) return {cls: 'none', text: 'Not run'};
+  const st = RUN.summary.stages.find(s => s.name === stageName);
+  if (!st) return RUN.summary.blocked_at ? {cls: 'none', text: '🔒 Locked'} : {cls: 'none', text: 'Not run'};
+  if (st.context) return {cls: 'none', text: '↺ from cache (not re-run)'};
+  return st.passed ? {cls: 'good', text: '✓ Passed'} : {cls: 'critical', text: '✗ Not passed'};
+}
+
+function renderStepper() {
+  const el = $('#stepper'); el.innerHTML = '';
+  CFG.stages.forEach((cs, i) => {
+    const st = RUN && RUN.summary.stages.find(s => s.name === cs.name);
+    const status = statusOf(cs.name);
+    const written = cs.params.filter(p => p.instructions.trim()).length;
+    let checks = '–', cum = '–';
+    if (st) {
+      const ps = Object.values(st.params);
+      const lab = ps.reduce((a, p) => a + p.labeled, 0), ok = ps.reduce((a, p) => a + p.checks_passed, 0);
+      checks = lab ? `${ok}/${lab} (${pct(ok / lab)})` : '–';
+      cum = fmt(st.cumulative[RUN.summary.cumulative_mode].auroc);
+    }
+    const stale = st && st.hash !== cs.hash ? '<div class="kv"><span class="muted">questions changed since this run</span></div>' : '';
+    const d = document.createElement('div');
+    d.className = 'step' + (STAGE === cs.name ? ' active' : '');
+    const carry = cs.carry_forward ? '' : '<div class="kv"><span class="muted">not in cumulative score (fixable downstream)</span></div>';
+    d.innerHTML = `<div class="n">Stage ${i + 1} · ${esc(cs.document)} doc</div>
+      <div class="name">${esc(cs.name)}</div>
+      <span class="badge"><span class="dot ${status.cls}"></span>${status.text}</span>
+      <div class="kv" style="margin-top:8px"><span>questions written</span><b>${written}/${cs.params.length}</b></div>
+      <div class="kv"><span>checks passing</span><b>${checks}</b></div>
+      <div class="kv"><span>params passing gate</span><b>${st ? Object.values(st.params).filter(p => p.passed).length + '/' + cs.params.length : '–'}</b></div>
+      <div class="kv"><span>stage docs fully correct</span><b>${st && st.stage_docs_correct != null ? st.stage_docs_correct + '/' + RUN.summary.n_cases : '–'}</b></div>
+      <div class="kv"><span>stage score AUROC (vs stage doc correct)</span><b>${st ? fmt(st.stage_auroc_vs_stage_label) : '–'}</b></div>
+      <div class="kv"><span>cumulative AUROC (vs final label)</span><b>${cum}</b></div>${carry}${stale}
+      <button class="run" data-stage="${esc(cs.name)}" ${cs.locked_by.length && !$('#rForce').checked ? 'disabled' : ''}
+        title="${cs.locked_by.length ? 'locked until ' + esc(cs.locked_by.join(', ')) + ' passed on train' : 'run only this stage'}">
+        ${cs.locked_by.length && !$('#rForce').checked ? '🔒 locked · pass ' + esc(cs.locked_by[cs.locked_by.length - 1]) + ' first' : '▶ Run this stage'}</button>`;
+    d.onclick = () => { STAGE = cs.name; PARAM = null; INSPECT.stage = cs.name; renderAll(); loadInspector(); };
+    d.querySelector('.run').onclick = e => { e.stopPropagation(); startRun({only: cs.name}); };
+    el.appendChild(d);
+  });
+  const g = CFG.gate;
+  $('#stageNote').textContent = `gate: every param written, AUROC ≥ ${g.min_auroc} (when ≥ ${g.min_errors} wrong values), balanced accuracy ≥ ${g.min_balanced_accuracy}${g.allow_truncation ? '' : ', no truncation'}`;
+}
+
+function renderParams() {
+  const cs = CFG.stages.find(s => s.name === STAGE);
+  const st = RUN && RUN.summary.stages.find(s => s.name === STAGE);
+  $('#stageTitle').innerHTML = `Questions · ${esc(STAGE)} <small>click a row to see where it goes wrong</small>`;
+  let h = `<tr><th>Param</th><th>Question</th><th>Evidence</th><th>Checks passing</th><th class="num">Errors caught</th><th class="num">False alarms</th><th class="num">AUROC</th><th class="num">Bal. acc</th><th class="num">Value acc</th><th class="num">Max tokens</th><th>Gate</th></tr>`;
+  for (const p of cs.params) {
+    const m = st && st.params[p.name];
+    const written = p.instructions.trim();
+    const kind = p.type === 'choice' ? (p.answer_field ? `choice → ${p.answer_field}` : 'choice') : 'yes/no';
+    const mech = (p.mechanism ? `<span class="chip">mechanism: ${esc(p.mechanism)}</span>` : '')
+      + (p.label_from ? `<span class="chip">labels: ${esc(p.label_from)}</span>` : '');
+    let checks = '<span class="muted">–</span>', gate = '<span class="muted">not run</span>';
+    if (m && m.written) {
+      const r = m.labeled ? m.checks_passed / m.labeled : null;
+      checks = m.labeled ? `<div class="meter"><div class="track"><div class="fill" style="width:${100 * r}%"></div></div><span class="num">${m.checks_passed}/${m.labeled}</span></div>` : `${m.calls} calls`;
+    }
+    if (m && m.passed !== null) {
+      gate = m.passed ? '<span class="badge"><span class="dot good"></span>✓ pass</span>'
+        : `<span class="badge"><span class="dot critical"></span>✗ fail</span><div class="reasons">${m.gate_reasons.map(esc).join('<br>')}</div>`;
+    } else if (!written) gate = '<span class="badge"><span class="dot none"></span>not written</span>';
+    const trunc = m && m.truncated ? ` <span class="badge"><span class="dot warn"></span>⚠ ${m.truncated} truncated</span>` : '';
+    h += `<tr class="clickable ${PARAM === p.name ? 'sel' : ''}" data-p="${esc(p.name)}">
+      <td><b>${esc(p.name)}</b><br><span class="chip">${kind}</span><span class="chip">${p.scope}</span>${mech}</td>
+      <td class="q">${written ? `<i>${esc(p.instructions)}</i>` : '<span class="muted">— not written —</span>'}</td>
+      <td>${p.evidence.map(e => `<span class="chip">${esc(e)}</span>`).join('')}</td>
+      <td>${checks}</td>
+      <td class="num">${m && m.written && m.labeled ? `${m.caught}/${m.errors}` : '–'}</td>
+      <td class="num">${m && m.written && m.labeled ? m.false_alarms : '–'}</td>
+      <td class="num">${m ? fmt(m.auroc, 2) : '–'}</td>
+      <td class="num">${m ? fmt(m.balanced_accuracy, 2) : '–'}</td>
+      <td class="num">${m ? fmt(m.value_accuracy, 2) : '–'}</td>
+      <td class="num">${m && m.written ? m.max_tokens : '–'}${trunc}</td>
+      <td>${gate}</td></tr>`;
+  }
+  $('#paramTable').innerHTML = h;
+  document.querySelectorAll('#paramTable tr.clickable').forEach(tr => tr.onclick = () => { PARAM = PARAM === tr.dataset.p ? null : tr.dataset.p; renderParams(); });
+  renderDrill();
+}
+
+function renderDrill() {
+  const el = $('#drill');
+  if (!PARAM) { el.innerHTML = ''; return; }
+  const p = CFG.stages.find(s => s.name === STAGE).params.find(x => x.name === PARAM);
+  const opts = p.options ? (typeof p.options === 'string' ? `options: per-case master-data ${esc(p.options)}`
+    : 'options: ' + Object.entries(p.options).map(([k, v]) => `<span class="chip">${esc(k)} = ${esc(v)}</span>`).join('')) : '';
+  if (!RUN) { el.innerHTML = `<p>${opts}</p><div class="empty">No run yet.</div>`; return; }
+  const calls = RUN.calls.filter(c => c.stage === STAGE && c.param === PARAM);
+  if (!calls.length) { el.innerHTML = `<p>${opts}</p><div class="empty">This param has no answers in the selected run.</div>`; return; }
+  const wrong = calls.filter(c => c.label === false).sort((a, b) => b.p - a.p);
+  const doubted = calls.filter(c => c.label === true).sort((a, b) => a.p - b.p);
+  const item = c => `<div class="item" data-case="${c.case_id}" data-line="${c.line_id ?? ''}">
+      <div class="top"><span class="mono">${c.case_id}${c.line_id ? ' · line ' + c.line_id : ''}</span><b class="num">P(correct) ${fmt(c.p, 2)}</b></div>
+      ${c.pick != null ? `<div>model picked <b>${esc(c.pick)}</b> · stage has <b>${esc(c.value)}</b> · expected <b>${esc(c.expected)}</b></div>` : ''}
+      ${c.diff ? `<div class="muted">${esc(c.diff)}</div>` : ''}<div><a href="#" class="insp" data-case="${c.case_id}">inspect case →</a></div></div>`;
+  const m0 = RUN.summary.stages.find(s => s.name === STAGE).params[PARAM], cut = (m0 && m0.decision_threshold) || 0.5;
+  const sc = c => c.says_correct ?? (c.p >= cut);
+  const missed = wrong.filter(c => sc(c)), alarms = doubted.filter(c => !sc(c));
+  el.innerHTML = `<p style="margin:12px 0 0">${opts}</p><div class="drill">
+    <div><h3>Wrong values it believed (${m0 && m0.decision ? esc(m0.decision) : 'P ≥ ' + cut}): ${missed.length} of ${wrong.length}</h3>${missed.slice(0, 25).map(item).join('') || '<div class="muted">none</div>'}</div>
+    <div><h3>Correct values it doubted: ${alarms.length} of ${doubted.length}</h3>${alarms.slice(0, 25).map(item).join('') || '<div class="muted">none</div>'}</div></div>`;
+  el.querySelectorAll('.item').forEach(d => d.onclick = () => openPreview(STAGE, PARAM, d.dataset.case, d.dataset.line));
+  el.querySelectorAll('a.insp').forEach(a => a.onclick = e => { e.preventDefault(); e.stopPropagation(); INSPECT.stage = STAGE; openCase(a.dataset.case); });
+}
+
+async function openPreview(stage, param, cid, line) {
+  $('#modalTitle').textContent = `${stage}.${param} · ${cid}${line ? ' · line ' + line : ''}`;
+  $('#modalBody').innerHTML = '<div class="empty">loading…</div>';
+  $('#modal').style.display = 'flex';
+  try {
+    const r = await api(`/api/preview?stage=${stage}&param=${param}&case=${cid}&line=${line || ''}&split=${RUN.summary.split}`);
+    const call = RUN.calls.find(c => c.stage === stage && c.param === param && c.case_id === cid && String(c.line_id ?? '') === String(line || ''));
+    $('#modalBody').innerHTML = `${call ? `<p>P(correct) <b>${fmt(call.p, 3)}</b> · label <b>${call.label}</b>${call.pick != null ? ` · picked <b>${esc(call.pick)}</b> · stage value <b>${esc(call.value)}</b> · expected <b>${esc(call.expected)}</b>` : ''} · ${call.tokens} tokens</p>` : ''}
+      <p class="muted">Payload sent to Laya (with the current questions.py):</p><pre class="mono">${esc(JSON.stringify(r.payload, null, 2))}</pre>`;
+  } catch (e) { $('#modalBody').innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+$('#modalClose').onclick = () => $('#modal').style.display = 'none';
+$('#modal').onclick = e => { if (e.target.id === 'modal') $('#modal').style.display = 'none'; };
+
+/* ---------------- confidence */
+function scoresFor(stage) {
+  const mode = RUN.summary.cumulative_mode;
+  return RUN.cases.filter(c => c.stages[stage]).map(c => ({id: c.case_id, label: c.label, s: c.stages[stage].cum[mode] ?? 0.5, c}));
+}
+
+function renderTiles() {
+  const f = RUN.summary.final, s = RUN.summary;
+  const tiles = [
+    ['AUROC after ' + s.last_stage, fmt(f.auroc), 'cumulative confidence, ' + s.cumulative_mode],
+    ['Brier', fmt(f.brier), 'lower is better'],
+    ['Suggested threshold', f.suggested_threshold == null ? 'none' : fmtT(f.suggested_threshold), `lowest with ≤ ${pct(s.target_risk)} incorrect among accepted`],
+    ['Pipeline\'s own score', fmt(f.pipeline_baseline_auroc), 'AUROC of validation_output.reported_confidence'],
+    ['Cases', s.n_cases, `${s.split} split`],
+  ];
+  $('#tiles').innerHTML = tiles.map(([l, v, sub]) => `<div class="tile"><div class="l">${esc(l)}</div><div class="v">${esc(v)}</div><div class="s">${esc(sub)}</div></div>`).join('');
+}
+
+function tipShow(e, html) { const t = $('#tip'); t.innerHTML = html; t.style.display = 'block'; t.style.left = (e.clientX + 12) + 'px'; t.style.top = (e.clientY + 12) + 'px'; }
+function tipHide() { $('#tip').style.display = 'none'; }
+
+function renderAucChart() {
+  const svg = $('#aucChart'), W = svg.clientWidth || 500, H = 240, m = {l: 40, r: 16, t: 12, b: 28};
+  const stages = RUN.summary.stages;
+  const x = i => m.l + (stages.length === 1 ? (W - m.l - m.r) / 2 : i * (W - m.l - m.r) / (stages.length - 1));
+  const y = v => m.t + (1 - v) * (H - m.t - m.b);
+  let g = '';
+  for (const v of [0, 0.25, 0.5, 0.75, 1.0]) g += `<line class="grid" x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}"/><text x="${m.l - 6}" y="${y(v) + 4}" text-anchor="end">${v.toFixed(1)}</text>`;
+  g += `<line class="axis" x1="${m.l}" x2="${W - m.r}" y1="${y(0)}" y2="${y(0)}"/>`;
+  const base = RUN.summary.final.pipeline_baseline_auroc;
+  if (base != null) g += `<line x1="${m.l}" x2="${W - m.r}" y1="${y(base)}" y2="${y(base)}" stroke="var(--muted)" stroke-dasharray="4 4"/><text x="${m.l + 4}" y="${y(base) - 4}">pipeline's own score ${fmt(base, 2)}</text>`;
+  stages.forEach((s, i) => g += `<text x="${x(i)}" y="${H - 8}" text-anchor="middle">${esc(s.name)}</text>`);
+  for (const [mode, col] of [['product', 'var(--s2)'], ['carry_forward', 'var(--s1)']]) {
+    const pts = stages.map((s, i) => [x(i), s.cumulative[mode].auroc]).filter(p => p[1] != null);
+    if (pts.length > 1) g += `<polyline fill="none" stroke="${col}" stroke-width="2" points="${pts.map(p => `${p[0]},${y(p[1])}`).join(' ')}"/>`;
+    stages.forEach((s, i) => {
+      const v = s.cumulative[mode].auroc; if (v == null) return;
+      g += `<circle cx="${x(i)}" cy="${y(v)}" r="5" fill="${col}" stroke="var(--surface)" stroke-width="2"/>
+            <circle cx="${x(i)}" cy="${y(v)}" r="14" fill="transparent" data-tip="<b>${esc(s.name)}</b><br>${mode === 'product' ? 'product of all stages' : 'carry-forward'}: AUROC ${fmt(v)}<br>Brier ${fmt(s.cumulative[mode].brier)}"/>`;
+    });
+  }
+  svg.innerHTML = g;
+  svg.querySelectorAll('[data-tip]').forEach(c => { c.onmousemove = e => tipShow(e, c.dataset.tip); c.onmouseleave = tipHide; });
+}
+
+function sweepAt(scores, t) {
+  const acc = scores.filter(s => s.s >= t), good = scores.filter(s => s.label).length;
+  return {accepted: acc.length, coverage: acc.length / scores.length, bad: acc.filter(s => !s.label).length,
+    incorrect: acc.length ? acc.filter(s => !s.label).length / acc.length : null,
+    recall: good ? acc.filter(s => s.label).length / good : null};
+}
+
+const fmtT = t => t == null ? '–' : (t !== 0 && t < 0.001 ? t.toExponential(2) : (+t).toFixed(3));
+function scaleFor(scores) {
+  const log = $('#logScale').checked, pos = scores.map(s => s.s).filter(v => v > 0);
+  if (!log) return {f: v => v, inv: v => v, lo: 0, hi: 1, tick: v => v.toFixed(2)};
+  const lo = Math.floor(Math.log10(Math.min(...pos, 1))), hi = 0;
+  return {f: v => (Math.log10(Math.max(v, 10 ** lo)) - lo) / (hi - lo || 1), inv: u => 10 ** (lo + u * (hi - lo)), lo, hi, tick: v => '1e' + Math.round(lo + v * (hi - lo))};
+}
+function setThrFromSlider() {
+  const vals = [...new Set(scoresFor(DIST_STAGE).map(s => s.s))].sort((a, b) => a - b);
+  const i = Math.round(+$('#thr').value / 1000 * (vals.length - 1));
+  THR = vals.length ? vals[i] : 0.5;
+}
+function sliderFromThr() {
+  const vals = [...new Set(scoresFor(DIST_STAGE).map(s => s.s))].sort((a, b) => a - b);
+  let i = vals.findIndex(v => v >= THR); if (i < 0) i = vals.length - 1;
+  $('#thr').value = vals.length > 1 ? Math.round(1000 * i / (vals.length - 1)) : 0;
+}
+function renderDist() {
+  const svg = $('#distChart'), W = svg.clientWidth || 600, H = 240, m = {l: 36, r: 12, t: 12, b: 28};
+  const scores = scoresFor(DIST_STAGE), B = 20, sc = scaleFor(scores);
+  const bins = Array.from({length: B}, () => [0, 0]);
+  scores.forEach(s => bins[Math.min(B - 1, Math.floor(sc.f(s.s) * B))][s.label ? 0 : 1]++);
+  const maxY = Math.max(1, ...bins.flat());
+  const bw = (W - m.l - m.r) / B, y = v => m.t + (1 - v / maxY) * (H - m.t - m.b);
+  let g = '';
+  const ticks = [0, Math.ceil(maxY / 2), maxY];
+  for (const v of ticks) g += `<line class="grid" x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}"/><text x="${m.l - 6}" y="${y(v) + 4}" text-anchor="end">${v}</text>`;
+  bins.forEach(([a, b], i) => {
+    const x0 = m.l + i * bw, w = Math.max(1, (bw - 2) / 2 - 1);
+    for (const [v, col, dx, name] of [[a, 'var(--s1)', 1, 'acceptable'], [b, 'var(--s2)', 1 + w + 2, 'not acceptable']]) {
+      if (!v) continue;
+      const top = y(v), hgt = y(0) - top, r = Math.min(4, w / 2, hgt);
+      g += `<path d="M${x0 + dx},${y(0)} v${-(hgt - r)} q0,${-r} ${r},${-r} h${w - 2 * r} q${r},0 ${r},${r} v${hgt - r} z" fill="${col}"/>`;
+    }
+    g += `<rect x="${x0}" y="${m.t}" width="${bw}" height="${H - m.t - m.b}" fill="transparent" data-tip="score ${fmtT(sc.inv(i / B))} – ${fmtT(sc.inv((i + 1) / B))}<br>acceptable: <b>${a}</b><br>not acceptable: <b>${b}</b>"/>`;
+  });
+  for (const v of [0, 0.25, 0.5, 0.75, 1]) g += `<text x="${m.l + v * (W - m.l - m.r)}" y="${H - 8}" text-anchor="middle">${sc.tick(v)}</text>`;
+  g += `<line class="axis" x1="${m.l}" x2="${W - m.r}" y1="${y(0)}" y2="${y(0)}"/>`;
+  const tu = sc.f(THR), tx = m.l + tu * (W - m.l - m.r);
+  g += `<line x1="${tx}" x2="${tx}" y1="${m.t}" y2="${y(0)}" stroke="var(--ink)" stroke-width="2"/><text x="${tu > 0.7 ? tx - 4 : tx + 4}" y="${m.t + 10}" text-anchor="${tu > 0.7 ? 'end' : 'start'}" style="fill:var(--ink)">threshold ${fmtT(THR)}</text>`;
+  svg.innerHTML = g;
+  svg.querySelectorAll('[data-tip]').forEach(c => { c.onmousemove = e => tipShow(e, c.dataset.tip); c.onmouseleave = tipHide; });
+  const s = sweepAt(scores, THR);
+  $('#thrStats').innerHTML = `accepted <b>${s.accepted}/${scores.length}</b> · coverage <b>${pct(s.coverage)}</b> · incorrect among accepted <b>${s.incorrect == null ? '–' : (100 * s.incorrect).toFixed(1) + '%'}</b> (${s.bad}) · acceptable recall <b>${pct(s.recall)}</b>`;
+  renderCases(scores);
+}
+
+function renderCases(scores) {
+  const stages = RUN.summary.stages.map(s => s.name), mode = RUN.summary.cumulative_mode;
+  let rows = scores.slice().sort((a, b) => a.s - b.s);
+  if ($('#onlyWrong').checked) rows = rows.filter(r => (r.s >= THR) !== r.label);
+  let h = `<tr><th>Case</th><th>Label</th>${stages.map(s => `<th class="num">after ${esc(s)}</th>`).join('')}<th>Lowest params (${esc(DIST_STAGE)})</th><th>Failure mechanisms</th></tr>`;
+  for (const r of rows.slice(0, 200)) {
+    const st = r.c.stages[DIST_STAGE];
+    const low = Object.entries(st.params).sort((a, b) => a[1] - b[1]).slice(0, 3).map(([k, v]) => `<span class="chip">${esc(k)} ${fmt(v, 2)}</span>`).join('');
+    const side = (r.s >= THR) === r.label ? '' : ' <span class="badge"><span class="dot critical"></span>' + (r.label ? 'rejected' : 'accepted') + '</span>';
+    h += `<tr class="clickable" data-case="${r.id}"><td class="mono">${r.id}</td><td>${r.label ? 'acceptable' : 'not acceptable'}${side}</td>
+      ${stages.map(s => `<td class="num">${r.c.stages[s] && r.c.stages[s].cum[mode] != null ? fmtT(r.c.stages[s].cum[mode]) : '–'}</td>`).join('')}
+      <td>${low}</td><td>${r.c.mechanisms.map(m => `<span class="chip">${esc(m)}</span>`).join('')}</td></tr>`;
+  }
+  if (rows.length === 0) h += `<tr><td colspan="9" class="empty">No cases on the wrong side of this threshold.</td></tr>`;
+  $('#caseTable').innerHTML = h;
+  document.querySelectorAll('#caseTable tr[data-case]').forEach(tr => tr.onclick = () => openCase(tr.dataset.case));
+}
+$('#onlyWrong').onchange = () => renderDist();
+$('#thr').oninput = () => { setThrFromSlider(); renderDist(); };
+$('#logScale').onchange = () => renderDist();
+$('#distStage').onchange = e => { DIST_STAGE = e.target.value; autoLog(); sliderFromThr(); renderDist(); };
+function autoLog() { const v = scoresFor(DIST_STAGE).map(s => s.s).sort((a, b) => a - b); $('#logScale').checked = v.length > 0 && v[v.length >> 1] < 0.01; }
+
+async function renderEnums() {
+  try {
+    const r = await api('/api/enums');
+    let h = `<table><tr><th>Field</th><th>Options from</th><th>Values seen in data</th><th>Status</th></tr>`;
+    for (const e of r.report) {
+      const ok = !Object.keys(e.outside_enum).length && !e.duplicate_descriptions.length && !e.ambiguous_keys.length;
+      const vals = e.source === 'enum' ? Object.entries(e.value_counts).map(([k, v]) => `<span class="chip">${esc(k)} × ${v}</span>`).join('') : `${e.value_counts.distinct} distinct ids, all in master data`;
+      h += `<tr><td class="mono">${esc(e.field)}</td><td>${e.source === 'enum' ? 'ENUMS' : 'per-case ' + esc(e.source)}</td><td>${vals}${e.unused_options.length ? `<div class="muted">unused options: ${e.unused_options.map(esc).join(', ')}</div>` : ''}</td>
+        <td>${ok ? '<span class="badge"><span class="dot good"></span>✓ exhaustive & exclusive</span>' : `<span class="badge"><span class="dot critical"></span>✗ issue</span><div class="reasons">${esc(JSON.stringify(e.outside_enum))}</div>`}</td></tr>`;
+    }
+    $('#enums').innerHTML = h + '</table>' + (r.issues.length ? `<p class="reasons">${r.issues.map(esc).join('<br>')}</p>` : '');
+  } catch (e) { $('#enums').innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+}
+
+function renderParserFlags() {
+  const el = $('#pflags');
+  if (!RUN || !RUN.summary.parser_flags) { el.innerHTML = '<div class="empty">No run selected.</div>'; return; }
+  const pf = RUN.summary.parser_flags;
+  const types = Object.entries(pf.by_type);
+  let h = `<div class="tiles" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr))">
+    <div class="tile"><div class="l">Cases with parser errors</div><div class="v">${pf.cases_with_errors}</div><div class="s">of ${RUN.summary.n_cases}</div></div>
+    <div class="tile"><div class="l">Cases with warnings</div><div class="v">${pf.cases_with_warnings}</div><div class="s">of ${RUN.summary.n_cases}</div></div>
+    ${types.map(([t, v]) => `<div class="tile"><div class="l"><span class="badge"><span class="dot ${v.severity === 'error' ? 'critical' : 'warn'}"></span>${v.severity === 'error' ? '✗' : '⚠'} ${esc(v.severity)}</span></div><div class="v">${v.count}</div><div class="s">${esc(t)}</div></div>`).join('')}
+  </div>`;
+  const rows = [];
+  for (const c of RUN.cases) for (const f of c.parser_flags) rows.push({c, f});
+  rows.sort((a, b) => (a.f.severity === 'error' ? 0 : 1) - (b.f.severity === 'error' ? 0 : 1));
+  h += `<div class="scroll" style="max-height:300px"><table><tr><th>Case</th><th>Severity</th><th>Type</th><th>Line</th><th>Detail</th><th>Label</th></tr>
+    ${rows.slice(0, 300).map(({c, f}) => `<tr><td class="mono">${c.case_id}</td><td><span class="badge"><span class="dot ${f.severity === 'error' ? 'critical' : 'warn'}"></span>${f.severity === 'error' ? '✗' : '⚠'} ${f.severity}</span></td><td>${esc(f.type)}</td><td>${f.line_id ?? '–'}</td><td>${esc(f.detail)}</td><td>${c.label ? 'acceptable' : 'not acceptable'}</td></tr>`).join('')}
+    ${rows.length ? '' : '<tr><td colspan="6" class="empty">No parser flags.</td></tr>'}</table></div>`;
+  el.innerHTML = h;
+}
+
+function renderHistory() {
+  let h = `<tr><th>Run</th><th>Split</th><th class="num">Cases</th>${CFG.stages.map(s => `<th>${esc(s.name)}</th>`).join('')}<th class="num">Final AUROC</th></tr>`;
+  for (const r of RUNS) {
+    h += `<tr class="clickable" data-id="${r.id}"><td class="mono">${r.id}${r.only ? `<div class="muted">only ${esc(r.only)}${r.case ? ' · ' + esc(r.case) : ''}</div>` : ''}${r.gate_eligible ? '' : '<div class="muted">sample run · does not count for gates</div>'}</td><td>${r.split}</td><td class="num">${r.n_cases}</td>
+      ${CFG.stages.map(cs => { const s = r.stages.find(x => x.name === cs.name); return `<td>${s && s.context ? '<span class="muted">cache</span>' : s ? `<span class="badge"><span class="dot ${s.passed ? 'good' : 'critical'}"></span>${s.passed ? '✓' : '✗'} ${fmt(s.cum_auroc, 2)}</span>` : '<span class="muted">–</span>'}</td>`; }).join('')}
+      <td class="num">${fmt(r.final_auroc)}</td></tr>`;
+  }
+  if (!RUNS.length) h += `<tr><td colspan="8" class="empty">No runs yet. Write questions in bench/questions.py, then press Run bench.</td></tr>`;
+  $('#history').innerHTML = h;
+  document.querySelectorAll('#history tr.clickable').forEach(tr => tr.onclick = () => selectRun(tr.dataset.id));
+}
+
+function renderAll() {
+  renderStepper(); renderParams();
+  const conf = document.querySelectorAll('#tiles, #aucChart, #distChart');
+  if (RUN) {
+    renderTiles(); renderAucChart();
+    const names = RUN.summary.stages.map(s => s.name);
+    if (!names.includes(DIST_STAGE)) DIST_STAGE = RUN.summary.last_stage;
+    $('#distStage').innerHTML = names.map(n => `<option ${n === DIST_STAGE ? 'selected' : ''}>${n}</option>`).join('');
+    autoLog(); sliderFromThr(); renderDist();
+  } else {
+    $('#tiles').innerHTML = '<div class="empty" style="grid-column:1/-1">No run selected.</div>';
+    $('#aucChart').innerHTML = ''; $('#distChart').innerHTML = ''; $('#caseTable').innerHTML = ''; $('#thrStats').innerHTML = '';
+  }
+  renderParserFlags();
+  renderHistory();
+}
+
+async function selectRun(id) {
+  RUN = id ? await api('/api/run?id=' + encodeURIComponent(id)) : null;
+  $('#runSel').value = id || '';
+  if (RUN) THR = RUN.summary.final.suggested_threshold ?? RUN.summary.threshold;
+  renderAll();
+}
+
+async function loadAll(selectId) {
+  CFG = await api('/api/config');
+  RUNS = await api('/api/runs');
+  if (!STAGE) STAGE = CFG.stages[0].name;
+  if (!INSPECT.stage) INSPECT.stage = STAGE;
+  $('#rStage').innerHTML = '<option value="">all stages (stop at gate)</option>' + CFG.stages.map(s => `<option value="${s.name}">${s.name}</option>`).join('');
+  $('#runSel').innerHTML = RUNS.length ? RUNS.map(r => `<option value="${r.id}">${r.id} · ${r.split} · ${r.last_stage}</option>`).join('') : '<option value="">no runs yet</option>';
+  await selectRun(selectId || (RUNS[0] && RUNS[0].id));
+  renderEnums();
+  const ids = RUN ? RUN.cases.map(c => c.case_id) : [];
+  $('#caseList').innerHTML = ids.map(i => `<option value="${i}">`).join('');
+  if (!INSPECT.case && ids.length) INSPECT.case = ids[0], $('#caseInput').value = ids[0];
+  loadInspector();
+}
+$('#runSel').onchange = e => selectRun(e.target.value);
+
+/* ---------------- job */
+let polling = null;
+async function startRun(extra) {
+  try {
+    await api('/api/run', {method: 'POST', headers: {'content-type': 'application/json'},
+      body: JSON.stringify(Object.assign({split: $('#rSplit').value, force: $('#rForce').checked, limit: +$('#rLimit').value}, extra))});
+    $('#joblog').style.display = 'block';
+    pollJob();
+  } catch (e) { alert(e.message); }
+}
+$('#runBtn').onclick = () => startRun({stage: $('#rStage').value});
+$('#rForce').onchange = () => renderStepper();
+$('#runCaseBtn').onclick = () => { if (INSPECT.case) startRun({only: INSPECT.stage, case: INSPECT.case, limit: 0}); };
+
+/* ---------------- case inspector */
+const INSPECT = {case: null, stage: null, data: null};
+function openCase(cid) { INSPECT.case = cid; $('#caseInput').value = cid; loadInspector(); document.querySelector('#inspector').scrollIntoView({behavior: 'smooth', block: 'start'}); }
+$('#caseInput').onchange = e => { INSPECT.case = e.target.value.trim(); loadInspector(); };
+$('#onlyWrongFields').onchange = () => renderInspector();
+function renderTabs() {
+  const el = $('#ioTabs');
+  const names = CFG.stages.map(s => s.name).join('|');
+  if (el.dataset.names !== names) {  // build once; later calls only toggle classes, so a click is never lost to a re-render
+    el.dataset.names = names;
+    el.innerHTML = CFG.stages.map(s => `<button data-s="${s.name}">${s.name}</button>`).join('');
+    el.querySelectorAll('button').forEach(b => b.onclick = () => { INSPECT.stage = b.dataset.s; loadInspector(); });
+  }
+  el.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset.s === INSPECT.stage));
+}
+async function loadInspector() {
+  renderTabs();
+  if (!INSPECT.case) return;
+  const split = RUN ? RUN.summary.split : $('#rSplit').value;
+  const want = INSPECT.stage + '|' + INSPECT.case;
+  let data;
+  try { data = await api(`/api/case?stage=${INSPECT.stage}&case=${encodeURIComponent(INSPECT.case)}&split=${split}`); }
+  catch (e) { $('#inspector').innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+  if (want !== INSPECT.stage + '|' + INSPECT.case) return;  // a newer request superseded this one
+  INSPECT.data = data;
+  renderInspector();
+}
+const show = v => v == null ? '<span class="muted">–</span>' : esc(typeof v === 'string' ? v : JSON.stringify(v));
+function renderInspector() {
+  const d = INSPECT.data; if (!d) return;
+  $('#caseMeta').textContent = `${d.label ? 'acceptable' : 'not acceptable'}${d.mechanisms.length ? ' · ' + d.mechanisms.join(', ') : ''}`;
+  const cfgStage = CFG.stages.find(s => s.name === d.stage);
+  const calls = RUN ? RUN.calls.filter(c => c.stage === d.stage && c.case_id === d.case_id) : [];
+  const answersFor = (field, line) => cfgStage.params.filter(p => p.fields.includes(field) || (field === 'line ids' && p.fields.includes('__line_set__'))
+      || (d.stage === 'parser' && p.label_from)).map(p => {
+    const c = calls.find(c => c.param === p.name && (p.scope === 'case' ? c.line_id == null : String(c.line_id) === String(line)));
+    if (!c) return p.instructions.trim() ? `<span class="chip">${esc(p.name)}: not run</span>` : '';
+    const ok = c.label == null ? '' : ((c.p >= 0.5) === c.label ? ' ✓' : ' ✗');
+    return `<span class="chip" title="${esc(p.instructions)}">${esc(p.name)} P=${fmt(c.p, 2)}${c.pick != null ? ' pick ' + esc(c.pick) : ''}${ok}</span>`;
+  }).join('');
+  let rows = d.fields;
+  if ($('#onlyWrongFields').checked) rows = rows.filter(f => f.ok === false);
+  const hasPrev = d.fields.some(f => f.previous != null), hasExp = d.fields.some(f => f.ok != null);
+  const tbl = `<table><tr><th>Field</th><th>Line</th><th>Stage output</th>${hasPrev ? '<th>Previous stage</th>' : ''}${hasExp ? '<th>Expected</th><th></th>' : ''}<th>Questions (P correct)</th></tr>
+    ${rows.map(f => {
+      const changed = hasPrev && f.previous != null && JSON.stringify(f.previous) !== JSON.stringify(f.value);
+      const okCell = f.ok == null ? '' : (f.ok ? '<span class="badge"><span class="dot good"></span>✓</span>' : '<span class="badge"><span class="dot critical"></span>✗</span>');
+      return `<tr><td class="mono ${f.ok === false ? 'bad' : ''}">${esc(f.field)}</td><td>${f.line_id ?? ''}</td>
+        <td class="mono">${show(f.value)}${changed ? '<div class="fixed">changed at this stage</div>' : ''}</td>
+        ${hasPrev ? `<td class="mono">${show(f.previous)}</td>` : ''}
+        ${hasExp ? `<td class="mono">${show(f.expected)}</td><td>${okCell}</td>` : ''}
+        <td>${answersFor(f.field, f.line_id)}</td></tr>`; }).join('') || '<tr><td colspan="7" class="empty">No wrong fields at this stage.</td></tr>'}</table>`;
+  const flags = d.flags.length ? `<h3 style="margin-top:12px">Parser flags</h3>${d.flags.map(f => `<div class="item"><span class="badge"><span class="dot ${f.severity === 'error' ? 'critical' : 'warn'}"></span>${f.severity === 'error' ? '✗' : '⚠'} ${esc(f.type)}</span> ${f.line_id ? 'line ' + f.line_id + ' · ' : ''}${esc(f.detail)}</div>`).join('')}` : '';
+  const wrong = d.fields.filter(f => f.ok === false).length;
+  $('#inspector').innerHTML = `<div class="io">
+    <div><h3>Input to ${esc(d.stage)}</h3>${d.input_text ? `<pre>${esc(d.input_text)}</pre><details><summary>structured input</summary><pre class="mono">${esc(JSON.stringify(d.input, null, 2))}</pre></details>` : `<pre class="mono">${esc(JSON.stringify(d.input, null, 2))}</pre>`}${flags}</div>
+    <div><h3>Output of ${esc(d.stage)} ${hasExp ? `· <span class="${wrong ? '' : 'muted'}">${wrong} field${wrong === 1 ? '' : 's'} differ from expected</span>` : ''}</h3>
+      <div class="scroll">${tbl}</div>
+      <details><summary>raw stage output</summary><pre class="mono">${esc(JSON.stringify(d.output, null, 2))}</pre></details></div></div>`;
+}
+async function pollJob() {
+  clearTimeout(polling);
+  const j = await api('/api/job');
+  const prog = [...j.log].reverse().find(l => l.startsWith('PROGRESS'));
+  let bar = '';
+  if (prog) { const [, st, frac] = prog.split(' '); const [a, b] = frac.split('/').map(Number); bar = `<span>${st}</span><div class="bar"><i style="width:${100 * a / b}%"></i></div><span class="num">${a}/${b}</span>`; }
+  $('#job').innerHTML = j.running ? (bar || 'starting…') : (j.returncode == null ? '' : (j.returncode === 0 ? 'last run finished' : (j.log.some(l => l.startsWith('CANCELLED')) ? 'run cancelled' : `run failed (exit ${j.returncode})`)));
+  $('#runBtn').disabled = j.running;
+  $('#cancelBtn').style.display = j.running ? '' : 'none';
+  $('#joblog').textContent = j.log.filter(l => !l.startsWith('PROGRESS')).join('\n');
+  if (j.running) polling = setTimeout(pollJob, 1000);
+  else if (j.run_id && $('#runSel').value !== j.run_id) { await loadAll(j.run_id); }
+}
+
+
+/* ---------------- views: bench / summary */
+function mdInline(t) {
+  return esc(t).replace(/`([^`]+)`/g, '<code>$1</code>').replace(/\*\*([^*]+)\*\*/g, '<b>$1</b>')
+    .replace(/\*([^*]+)\*/g, '<i>$1</i>');
+}
+function renderMarkdown(src) {
+  const lines = src.split('\n'), out = [];
+  let i = 0;
+  while (i < lines.length) {
+    const l = lines[i];
+    if (/^\s*$/.test(l)) { i++; continue; }
+    let m;
+    if ((m = l.match(/^(#{1,3})\s+(.*)/))) { out.push(`<h${m[1].length}>${mdInline(m[2])}</h${m[1].length}>`); i++; continue; }
+    if (/^---+\s*$/.test(l)) { out.push('<hr>'); i++; continue; }
+    if (l.startsWith('|')) {
+      const rows = []; while (i < lines.length && lines[i].startsWith('|')) rows.push(lines[i++]);
+      const cells = r => r.replace(/^\||\|\s*$/g, '').split('|').map(c => c.trim());
+      const body = rows.filter((r, k) => k !== 1 || !/^\|[\s:|-]+$/.test(r));
+      out.push('<table><tr>' + cells(body[0]).map(c => `<th>${mdInline(c)}</th>`).join('') + '</tr>'
+        + body.slice(1).map(r => '<tr>' + cells(r).map(c => `<td>${mdInline(c)}</td>`).join('') + '</tr>').join('') + '</table>');
+      continue;
+    }
+    if (l.startsWith('>')) {
+      const q = []; while (i < lines.length && lines[i].startsWith('>')) q.push(lines[i++].replace(/^>\s?/, ''));
+      out.push('<blockquote>' + q.filter(x => x.trim()).map(x => `<p>${mdInline(x)}</p>`).join('') + '</blockquote>'); continue;
+    }
+    if (/^\s*([-*]|\d+\.)\s+/.test(l)) {
+      const ordered = /^\s*\d+\./.test(l), items = [];
+      while (i < lines.length && /^\s*([-*]|\d+\.)\s+/.test(lines[i])) {
+        let item = lines[i++].replace(/^\s*([-*]|\d+\.)\s+/, '');
+        while (i < lines.length && /^\s{2,}\S/.test(lines[i]) && !/^\s*([-*]|\d+\.)\s+/.test(lines[i])) item += ' ' + lines[i++].trim();
+        items.push(`<li>${mdInline(item)}</li>`);
+      }
+      out.push(ordered ? `<ol>${items.join('')}</ol>` : `<ul>${items.join('')}</ul>`); continue;
+    }
+    const para = []; while (i < lines.length && lines[i].trim() && !/^(#|\||>|---|\s*([-*]|\d+\.)\s)/.test(lines[i])) para.push(lines[i++]);
+    out.push(`<p>${mdInline(para.join(' '))}</p>`);
+  }
+  return out.join('\n');
+}
+async function showView(v) {
+  document.querySelectorAll('#viewTabs button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  $('#benchView').style.display = v === 'bench' ? '' : 'none';
+  $('#summaryView').style.display = v === 'summary' ? '' : 'none';
+  try { if (localStorage) localStorage.setItem('view', v); } catch (e) {}
+  if (v === 'summary') {
+    try { $('#summaryBody').innerHTML = renderMarkdown((await api('/api/summary')).markdown); }
+    catch (e) { $('#summaryBody').innerHTML = `<div class="empty">${esc(e.message)}</div>`; }
+  } else if (RUN) { renderAucChart(); renderDist(); }
+}
+document.querySelectorAll('#viewTabs button').forEach(b => b.onclick = () => showView(b.dataset.v));
+try { if (localStorage.getItem('view') === 'summary') showView('summary'); } catch (e) {}
+
+/* ---------------- cancel */
+$('#cancelBtn').onclick = async () => {
+  if (!confirm('Cancel the running bench? Answers fetched so far stay cached.')) return;
+  try { await api('/api/cancel', {method: 'POST', headers: {'content-type': 'application/json'}, body: '{}'}); pollJob(); }
+  catch (e) { alert(e.message); }
+};
+
+window.addEventListener('resize', () => { if (RUN) { renderAucChart(); renderDist(); } });
+loadAll().then(pollJob).catch(e => { document.querySelector('#benchView').innerHTML = `<div class="empty">${esc(e.message)}</div>`; });
+</script>
+</body>
+</html>
