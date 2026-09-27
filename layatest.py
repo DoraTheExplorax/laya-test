@@ -2,12 +2,12 @@ import laya_mlx as laya
 
 agent = laya.load("aac6fef/laya-mlx")
 result = agent.predict(
-    "I was billed twice. Please refund the duplicate today.",
+    "From: buyer@acme-trading.de — Subject: order for ACME GmbH.",
     {
         "department": {
             "type": "choice",
-            "instructions": "Which department should handle this request?",
-            "criteria": ["billing", "technical", "sales"],
+            "instructions": "What SKU should the order be placed for ",
+            "criteria": ["ACME GmbH", "ACME Trading GmbH"],
         },
         "refund": {
             "type": "noul",
